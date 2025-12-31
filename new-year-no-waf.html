@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; img-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; media-src 'self'; object-src 'self'; child-src 'self'; form-action 'none'; base-uri 'self'" />
+<meta http-equiv="X-XSS-Protection"  content="1;mode=block" always>
+<meta http-equiv="Referrer-Policy" content="no-referrer, strict-origin-when-cross-origin"><head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="color-scheme" content="dark light">
+  <title>New Year No WAF (and a sanitizer bypass)</title><!-- Begin Jekyll SEO tag v2.8.0 -->
+<meta name="generator" content="Jekyll v4.4.1" />
+<meta property="og:title" content="New Year No WAF (and a sanitizer bypass)" />
+<meta property="og:locale" content="en_US" />
+<meta name="description" content="Overview" />
+<meta property="og:description" content="Overview" />
+<link rel="canonical" href="scriptsrcscore.github.io/new-year-no-waf" />
+<meta property="og:url" content="scriptsrcscore.github.io/new-year-no-waf" />
+<meta property="og:site_name" content="scriptsrc score!" />
+<meta property="og:type" content="article" />
+<meta property="article:published_time" content="2025-12-31T00:00:00-05:00" />
+<meta name="twitter:card" content="summary" />
+<meta property="twitter:title" content="New Year No WAF (and a sanitizer bypass)" />
+<script type="application/ld+json">
+{"@context":"https://schema.org","@type":"BlogPosting","dateModified":"2025-12-31T00:00:00-05:00","datePublished":"2025-12-31T00:00:00-05:00","description":"Overview","headline":"New Year No WAF (and a sanitizer bypass)","mainEntityOfPage":{"@type":"WebPage","@id":"scriptsrcscore.github.io/new-year-no-waf"},"url":"scriptsrcscore.github.io/new-year-no-waf"}</script>
+<!-- End Jekyll SEO tag -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css?family=Source+Code+Pro:400,700" rel="stylesheet"><link rel="stylesheet" type="text/css" href="/assets/main-dark.css"></head>
+<body>
+    <div class="container"><header>
+  <div class="menu">
+    <ul><li>
+          <a href="/">/</a>
+        </li></ul>
+  </div>
+</header>
+<main>
+      <h1 id="overview">Overview</h1>
+
+<p>It’s been a year and some change since I’ve wrote anything here (whoops). And while I have a backlog of bugs I want to write about, finding the time to actually do it is a different story. Despite these hardships, I’m gonna shake off the dust and enter the new year by leaving you with two recent XSS findings. Note that neither of these are particularly novel, but I had a lot of fun finding them and, in my opinion, they’re <em>juuuuust</em> past the threshold of interesting enough to warrant a quick post.</p>
+
+<p>The first finding is on a program that allows hunters to try and bypass their WAF in a test environment. The payload only works in Firefox due to some differences in how the <strong>beforematch</strong> event is handled when defined inline. Second is a Stored XSS with an interesting sanitizer bypass that resulted in privilege escalation and complete organizational takeover within the application.</p>
+
+<h1 id="finding-1-waf-bypass">Finding #1: WAF Bypass</h1>
+
+<p>One of my favorite pastimes is working through XSS challenges people post on Twitter. While doing that very thing, I found myself doomscrolling MDN while deep in a rabbit hole and came across the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Element/beforematch_event">beforematch</a> event handler:</p>
+
+<blockquote>
+  <p>The HTML <a href="https://developer.mozilla.org/en-US/docs/Web/HTML/Reference/Global_attributes/hidden"><code class="language-plaintext highlighter-rouge">hidden</code></a> attribute accepts a value <code class="language-plaintext highlighter-rouge">until-found</code>: when this value is specified, the element is hidden but its content will be accessible to the browser’s “find in page” feature or to fragment navigation. When these features cause a scroll to an element in a “hidden until found” subtree, the browser will:</p>
+
+  <ol>
+    <li>
+      <p>Fire a <code class="language-plaintext highlighter-rouge">beforematch</code> event on the hidden element</p>
+    </li>
+    <li>
+      <p>Remove the <code class="language-plaintext highlighter-rouge">hidden</code> attribute from the element</p>
+    </li>
+    <li>
+      <p>Scroll to the element</p>
+    </li>
+  </ol>
+
+</blockquote>
+
+<p>So, on an element defined with the event handler attribute <strong>onbeforematch</strong>, and <strong>hidden</strong> set to <strong>“until-found”</strong>, the event handler will fire upon fragment navigation. The below payload, with <code class="language-plaintext highlighter-rouge">x</code> as the fragment value, will pop an alert:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="nt">&lt;example</span> <span class="na">id=</span><span class="s">"x"</span> <span class="na">onbeforematch=</span><span class="s">"alert()"</span> <span class="na">hidden=</span><span class="s">"until-found"</span><span class="nt">&gt;&lt;/example&gt;</span>
+</code></pre></div></div>
+
+<p>While this wasn’t the solution to the original XSS challenge, it did prove useful later. A little over a year ago, a friend messaged me with an XSS they were working on in a program that accepts reports for WAF bypasses in a given test environment. This led to some really fun bypasses and a few new tricks in the arsenal for popping an alert without parenthesis. Here’s our reaction to finally getting an alert to fire:</p>
+
+<blockquote>
+  <p>noah — 10/29/24, 3:44 PM<br />
+IT’S ONE BRACKET VALUE WAY FROM BEING ADDED TO THE TARGET ELEM<br />
+“id=ionbeforeinput=x=alert+1;i.attributes[4]=/alert/.source+x[14]+1+x[15] oncopy/<br />
+the i.attributes[4] is the ONLY thing flagging this..<br />
+wait wait<br />
+omg</p>
+</blockquote>
+
+<p><em>alert pops</em></p>
+
+<blockquote>
+  <p>noah — 10/29/24, 3:52 PM<br />
+RRRRRRRRRAAAAAAAAAAAAAAAAAAAAAAAAAAAH!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11</p>
+
+  <p>jay — 10/29/24, 3:47 PM Tuesday, October 29, 2024 at 3:53 PM<br />
+WHHAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAT</p>
+</blockquote>
+
+<p>Flash forward to the present, I thought <strong>beforematch</strong> would be a good event handler to revisit this program with. I’ll save you from the minutiae of building the payload and just explain what worked to pop the alert.</p>
+
+<p><strong>final payload:</strong></p>
+
+<div class="language-javascript highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">?</span><span class="nx">param</span><span class="o">=&lt;</span><span class="nx">test</span> <span class="nx">id</span><span class="o">+=</span><span class="nx">x</span> <span class="nx">onbeforematch</span><span class="o">+=</span><span class="nx">y</span><span class="o">=</span><span class="nb">eval</span><span class="p">,</span><span class="nx">z</span><span class="o">=</span><span class="p">((</span><span class="nx">name</span><span class="p">)),</span><span class="nf">y</span><span class="p">(</span><span class="nx">z</span><span class="p">)</span> <span class="nx">hidden</span><span class="o">+=</span><span class="nx">until</span><span class="o">-</span><span class="nx">found</span><span class="o">&gt;</span><span class="nx">#x</span>
+</code></pre></div></div>
+
+<ol>
+  <li>
+    <p>Defines an element <strong>test</strong> (element name can be arbitrary) and sets the attributes id, onbeforematch, and hidden.</p>
+  </li>
+  <li>
+    <p><code class="language-plaintext highlighter-rouge">y=eval,z=((name)),y(z)</code> will fire before bringing the element into view with fragment navigation. This simply assigns <code class="language-plaintext highlighter-rouge">eval()</code> to the variable <code class="language-plaintext highlighter-rouge">y</code>, assigns <code class="language-plaintext highlighter-rouge">window.name</code> to variable <code class="language-plaintext highlighter-rouge">z</code>, and evaluates the contents of <code class="language-plaintext highlighter-rouge">window.name</code> by calling <code class="language-plaintext highlighter-rouge">y(z)</code>.</p>
+  </li>
+</ol>
+
+<p>Popping an alert now becomes trivial:</p>
+
+<div class="language-html highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="cp">&lt;!DOCTYPE html&gt;</span>
+<span class="nt">&lt;html</span> <span class="na">lang=</span><span class="s">"en"</span><span class="nt">&gt;</span>
+<span class="nt">&lt;head&gt;</span>
+    <span class="nt">&lt;meta</span> <span class="na">charset=</span><span class="s">"UTF-8"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;meta</span> <span class="na">name=</span><span class="s">"viewport"</span> <span class="na">content=</span><span class="s">"width=device-width, initial-scale=1.0"</span><span class="nt">&gt;</span>
+    <span class="nt">&lt;title&gt;</span>nowafpls<span class="nt">&lt;/title&gt;</span>
+<span class="nt">&lt;/head&gt;</span>
+<span class="nt">&lt;body&gt;</span>          
+  <span class="nt">&lt;script&gt;</span><span class="nb">window</span><span class="p">.</span><span class="nf">open</span><span class="p">(</span><span class="dl">"</span><span class="s2">https://example.com/?param=%3Ctest%20id+=x%20onbeforematch+=y%3Deval,z%3D((name)),y(z)%20hidden+=until-found%3E#x</span><span class="dl">"</span><span class="p">,</span> <span class="dl">"</span><span class="s2">alert(document.domain)</span><span class="dl">"</span><span class="p">);</span><span class="nt">&lt;/script&gt;</span>
+<span class="nt">&lt;/body&gt;</span>
+<span class="nt">&lt;/html&gt;</span>
+</code></pre></div></div>
+
+<ul>
+  <li>Uses <code class="language-plaintext highlighter-rouge">window.open()</code> to assign <code class="language-plaintext highlighter-rouge">window.name</code>.</li>
+</ul>
+
+<h1 id="finding-2-stored-xss---tenant-takeover">Finding #2: Stored XSS -&gt; Tenant Takeover</h1>
+
+<p>This finding was on an application used for collaboration within an organization between team members and different business units. It allows businesses to do things like task management, messaging and communication, document and file collaboration, and tons of other boring stuff.</p>
+
+<p>I was particularly interested in testing the meeting functionality, as it allowed dynamic creation of templates for things like emails related to the meeting, pages for related documents and notes, etc. One thing to note is that even the lowest privileged user can create meetings and invite other users.</p>
+
+<p>The feature for creating pages related to a meeting is just a WYSIWYG editor that allows only <em>safe</em> HTML elements and attribute values. Any attempts to include things like <strong><code class="language-plaintext highlighter-rouge">on*</code></strong> attributes, JavaScript pseudo protocol, or <strong><code class="language-plaintext highlighter-rouge">id</code></strong> and <strong><code class="language-plaintext highlighter-rouge">name</code></strong> attributes for clobbering global variables will be sanitized out.</p>
+
+<p>Before long, I noticed that updating a template with predefined values sends a GraphQL mutation with raw handlebars templates, i.e., <strong><code class="language-plaintext highlighter-rouge">{{organization_name}}</code></strong>, <strong><code class="language-plaintext highlighter-rouge">{{first_name}}</code></strong>, <strong><code class="language-plaintext highlighter-rouge">{{email}}</code></strong>, etc.</p>
+
+<p>On a whim, and not knowing much about handlebars syntax, I tried a simple <strong>{{constructor}}</strong>, which rendered <strong><code class="language-plaintext highlighter-rouge">[object Object]</code></strong> within the meeting page. Next, I tried <strong><code class="language-plaintext highlighter-rouge">{{constructor.constructor}}</code></strong> to attempt to access the <code class="language-plaintext highlighter-rouge">Function</code> constructor; however, this was sanitized out. The last thing I tried was bypassing the sanitizer by taking advantage of the mutation that happens when the sanitizer removes malicious input. Ultimately, the below payload popped the alert:</p>
+
+<div class="language-plaintext highlighter-rouge"><div class="highlight"><pre class="highlight"><code>&lt;{{constructor․constructor}}img{{constructor․constructor}} src{{constructor․constructor}}=x{{constructor.constructor}} onerro{{constructor.constructor}}r=alert(document.domain)&gt;
+</code></pre></div></div>
+
+<p>Not my prettiest work, but it gets the job done. In the final PoC, I used a call to GraphQL to escalate privileges from the lowest privileged user to complete takeover of the tenant, with the only requirement being the victim accepts the meeting invite and browses to the associated meeting page.</p>
+
+<h1 id="outro">Outro</h1>
+
+<p>As I said, nothing particularly novel. I’ll try to put these out more often in-between other responsibilities, hopefully with a bit more detail next time. That being said, if you have any questions, corrections, or feedback, don’t hesitate to message me on Discord: <code class="language-plaintext highlighter-rouge">jay.ctf</code>.</p>
+
+
+    </main><footer>
+  follow me on <a href="https://twitter.com/scriptsrcscore">twitter</a>
+</footer>
+</div>
+  </body>
+</html>
