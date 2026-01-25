@@ -41,7 +41,7 @@ Recently I’ve been re-visiting a program that I’ve previously spent a lot of
 
 <p>In the early stages of testing I had noticed that an alarming amount of their applications were running outdated versions of AngularJS. This is already a red flag considering AngularJS hasn’t been supported for a little under 3 years at the time I’m writing this. The one caveat is that a decent number of these domains were largely unauthenticated static sites with no sensitive actions. The ones that did contain such functionality were interesting as they would give an attacker access to some critical information about a victim (Full Name, Address, Email, Genealogy information, Phoner number, and more.) These domains also included messaging functionality that allows its users to communicate.</p>
 
-<p>With this information in mind the goal was set to find a CSTI in the application as this could surely be used leak a users PII and the messaging functionality can be leveraged to make the XSS wormable, opening up the possibility to scale the vulnerability across the entire user-base.</p>
+<p>With this information in mind the goal was set to find a CSTI in the application.</p>
 
 <p>AngularJS expression syntax is relatively simple, and can be thought of as a JavaScript-like expression (with a few differences that aren’t relevant here) wrapped in two curly brackets:</p>
 <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="p">{{</span><span class="mi">1</span><span class="o">+</span><span class="mi">1</span><span class="p">}}</span>
@@ -67,7 +67,7 @@ The domain I found the first issue in was a static site with almost no dynamic c
 <div class="language-yml highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="s">site:*.target.com inurl:parameter=defaultvalue</span>
 </code></pre></div></div>
 <p><br />
-All-in-all I identified that the issue was present in over <strong>60</strong> apps. In 3 of them I was able to leak PII to my origin and in 2 take over a users account with relative ease. In the one with messaging functionality I was able to build a wormable (my first ever!) proof of concept that in an attackers hands would have allowed them to exfiltrate PII at scale. Below you’ll find a quick script I hacked together to generate vulnerable URLs that pop an alert when visited:</p>
+All-in-all I identified that the issue was present in over <strong>60</strong> apps. In 3 of them I was able to leak PII to my origin and in 2 take over a users account with relative ease. Below you’ll find a quick script I hacked together to generate vulnerable URLs that pop an alert when visited:</p>
 
 <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code>
 <span class="nx">constpayload</span> <span class="o">=</span> <span class="dl">"</span><span class="s2">alert(1)</span><span class="dl">"</span><span class="p">;</span>
@@ -108,3 +108,4 @@ All-in-all I identified that the issue was present in over <strong>60</strong> a
 </div>
   </body>
 </html>
+
