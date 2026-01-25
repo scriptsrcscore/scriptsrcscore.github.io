@@ -37,7 +37,7 @@
 <main>
       <h1 id="spread-syntax-and-postmessage-walk-into-a-bar">Spread syntax and postMessage walk into a bar…</h1>
 <p><br />
-I wanted to highlight this bug as I have only seen it mentioned in very few places (linked at the bottom of this post), and thought it was an interesting code pattern to be on the lookout for. Before you continue reading, try to stop and see if there’s anything inherently wrong with the code below. There’s a few mistakes that the developers made that should immediately jump out at you.</p>
+I wanted to highlight this bug as I thought it was an interesting code pattern to be on the lookout for. Before you continue reading, try to stop and see if there’s anything inherently wrong with the code below. There’s a few mistakes that the developers made that should immediately jump out at you.</p>
 
 <div class="language-js highlighter-rouge"><div class="highlight"><pre class="highlight"><code><span class="kd">function</span> <span class="nf">handleScriptConfig</span><span class="p">(</span><span class="nx">value</span><span class="p">)</span> <span class="p">{</span>
   <span class="kd">const</span> <span class="nx">pathRegex</span> <span class="o">=</span> <span class="sr">/^</span><span class="se">[</span><span class="sr">a-zA-Z0-9</span><span class="se">/</span><span class="sr">.-</span><span class="se">]</span><span class="sr">*$/</span><span class="p">;</span>
@@ -108,3 +108,4 @@ https://vccolombo.github.io/cybersecurity/idor-vulnerability-in-a-personal-proje
 </div>
   </body>
 </html>
+
